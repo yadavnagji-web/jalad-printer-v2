@@ -38,7 +38,6 @@ export const DEFAULT_SHOP_SETTINGS: ShopSettings = {
   adsBannerUrl: '',
   shopCode: 'A',
   isAtShop: true,
-  isAtShopManualOverride: false,
 };
 
 export const DEFAULT_PRICING: PricingSettings = {
@@ -190,57 +189,84 @@ export class ApiClient {
     return settings;
   }
 
-  // Dedicated instant shop status methods
+  // Dedicated instant shop status methods with Universal Multi-Device Cloud Sync
   public async getShopStatus(): Promise<{
     isAtShop: boolean;
-    isAtShopManualOverride: boolean;
-    isAutoHours: boolean;
-    effectiveAtShop: boolean;
   }> {
+    // 1. Try local backend
     try {
       const res = await fetch(`/api/shop/status?_t=${Date.now()}`, {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
       });
       if (res.ok) {
-        return await res.json();
+        const data = await res.json();
+        return { isAtShop: !!data.isAtShop };
       }
     } catch {}
+
+    // 2. Try Universal Cloud Live Channel (for Vercel & cross-device deployments)
+    try {
+      const cloudRes = await fetch(
+        `https://ntfy.sh/sqp_live_shop_chikhali_8696312384/json?poll=1`,
+        { cache: 'no-store' }
+      );
+      if (cloudRes.ok) {
+        const text = await cloudRes.text();
+        const lines = text.trim().split('\n').filter(Boolean);
+        const lastLine = lines[lines.length - 1];
+        if (lastLine) {
+          const parsed = JSON.parse(lastLine);
+          if (parsed.message) {
+            const inner = JSON.parse(parsed.message);
+            if (typeof inner.isAtShop === 'boolean') {
+              return { isAtShop: inner.isAtShop };
+            }
+          }
+        }
+      }
+    } catch {}
+
+    // 3. Fallback to local storage
     const local = loadFromStorage(LOCAL_STORAGE_KEYS.SETTINGS, DEFAULT_SHOP_SETTINGS);
-    const now = new Date();
-    const isAutoHours = now.getHours() >= 10 && now.getHours() < 17;
-    const isManual = local.isAtShopManualOverride === true;
     return {
-      isAtShop: !!local.isAtShop,
-      isAtShopManualOverride: !!local.isAtShopManualOverride,
-      isAutoHours,
-      effectiveAtShop: isManual ? !!local.isAtShop : isAutoHours,
+      isAtShop: typeof local.isAtShop === 'boolean' ? local.isAtShop : true,
     };
   }
 
-  public async updateShopStatus(isAtShop: boolean, isManualOverride: boolean = true): Promise<ShopSettings> {
+  public async updateShopStatus(isAtShop: boolean): Promise<ShopSettings> {
+    const timestamp = new Date().toISOString();
+
+    // 1. Broadcast to Universal Cloud Live Channel (Instantly notifies all user devices globally, including Vercel)
+    try {
+      fetch('https://ntfy.sh/sqp_live_shop_chikhali_8696312384', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isAtShop, updatedAt: timestamp }),
+      }).catch(() => {});
+    } catch {}
+
+    // 2. Update local backend API if available
+    let dataFromBackend: any = null;
     try {
       const res = await fetch('/api/shop/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isAtShop, isAtShopManualOverride: isManualOverride }),
+        body: JSON.stringify({ isAtShop }),
       });
       if (res.ok) {
-        const data = await res.json();
-        saveToStorage(LOCAL_STORAGE_KEYS.SETTINGS, data);
-        this.addAuditLog('ADMIN', 'Shop Status Updated', `Shop mode toggled to ${isAtShop ? 'ON' : 'OFF'}`);
-        return data;
+        dataFromBackend = await res.json();
       }
-    } catch {
-      // fallback
-    }
+    } catch {}
+
     const current = loadFromStorage(LOCAL_STORAGE_KEYS.SETTINGS, DEFAULT_SHOP_SETTINGS);
     const updated: ShopSettings = {
       ...current,
+      ...(dataFromBackend || {}),
       isAtShop,
-      isAtShopManualOverride: isManualOverride,
     };
     saveToStorage(LOCAL_STORAGE_KEYS.SETTINGS, updated);
+    this.addAuditLog('ADMIN', 'Shop Status Updated', `Shop mode manually switched to ${isAtShop ? 'ON' : 'OFF'}`);
     return updated;
   }
 

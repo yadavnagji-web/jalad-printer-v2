@@ -239,8 +239,8 @@ export const Header: React.FC<HeaderProps> = ({
                     }`}
                     title={
                       shopStatus.isAtShop
-                        ? 'दूकान पर उपस्थित (10 AM - 5 PM या मैन्युअल ON)'
-                        : 'दूकान बंद / अनुपस्थित (प्रिंट सेवा बंद)'
+                        ? 'दुकान खुली है (प्रिंट सेवा उपलब्ध)'
+                        : 'दुकान बंद है (प्रिंट सेवा बंद)'
                     }
                   >
                     {shopStatus.isAtShop ? '🟢 दूकान पर (ON)' : '🔴 बंद (OFF)'}

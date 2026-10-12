@@ -33,7 +33,6 @@ export interface ShopSettings {
   adsBannerUrl?: string;
   shopCode?: string;
   isAtShop?: boolean;
-  isAtShopManualOverride?: boolean;
 }
 
 export interface RegisteredShopkeeper {

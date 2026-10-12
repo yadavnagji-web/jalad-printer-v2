@@ -215,25 +215,37 @@ export default function App() {
     };
   }, []);
 
-  // Instant real-time synchronization of shop settings (e.g., At Shop ON/OFF status) across all connected users
+  // Instant real-time synchronization of shop settings across all connected users (Local & Vercel)
   useEffect(() => {
+    // Clear any legacy auto schedule cache keys from browser history / local storage
+    try {
+      localStorage.removeItem('sqp_auto_hours');
+      localStorage.removeItem('sqp_auto_schedule');
+    } catch {}
+
     const syncShopSettings = async () => {
       try {
-        const latestSettings = await api.getSettings();
-        if (latestSettings) {
-          setSettings((prev) => {
-            if (
-              !prev ||
-              prev.isAtShop !== latestSettings.isAtShop ||
-              prev.isAtShopManualOverride !== latestSettings.isAtShopManualOverride ||
-              prev.shopName !== latestSettings.shopName ||
-              JSON.stringify(prev) !== JSON.stringify(latestSettings)
-            ) {
-              return { ...latestSettings };
-            }
-            return prev;
-          });
-        }
+        const [latestSettings, liveStatus] = await Promise.all([
+          api.getSettings(),
+          api.getShopStatus(),
+        ]);
+
+        const merged = {
+          ...latestSettings,
+          isAtShop: typeof liveStatus?.isAtShop === 'boolean' ? liveStatus.isAtShop : latestSettings.isAtShop,
+        };
+
+        setSettings((prev) => {
+          if (
+            !prev ||
+            prev.isAtShop !== merged.isAtShop ||
+            prev.shopName !== merged.shopName ||
+            JSON.stringify(prev) !== JSON.stringify(merged)
+          ) {
+            return { ...merged };
+          }
+          return prev;
+        });
       } catch {
         // silent offline guard
       }
@@ -242,6 +254,7 @@ export default function App() {
     syncShopSettings();
     const settingsInterval = setInterval(syncShopSettings, 800);
 
+    // 1. Local Server SSE stream (when hosted on Node.js)
     let sse: EventSource | null = null;
     if (typeof EventSource !== 'undefined') {
       try {
@@ -251,18 +264,33 @@ export default function App() {
             const data = JSON.parse(event.data);
             if (data.type === 'shop_settings_updated' && data.data) {
               setSettings({ ...data.data });
-              try {
-                localStorage.setItem('sqp_shop_settings', JSON.stringify(data.data));
-              } catch {}
             } else if (data.type === 'shop_status_updated' && data.data) {
               setSettings((prev) => ({
                 ...prev,
                 isAtShop: data.data.isAtShop,
-                isAtShopManualOverride: data.data.isAtShopManualOverride,
               }));
-              syncShopSettings();
-            } else if (data.type === 'shop_settings_updated') {
-              syncShopSettings();
+            }
+          } catch {}
+        };
+      } catch {}
+    }
+
+    // 2. Universal Cloud Live SSE Stream (Instant real-time sync for Vercel, mobile & cross-device)
+    let cloudSse: EventSource | null = null;
+    if (typeof EventSource !== 'undefined') {
+      try {
+        cloudSse = new EventSource('https://ntfy.sh/sqp_live_shop_chikhali_8696312384/sse');
+        cloudSse.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.message) {
+              const parsed = JSON.parse(data.message);
+              if (typeof parsed.isAtShop === 'boolean') {
+                setSettings((prev) => ({
+                  ...prev,
+                  isAtShop: parsed.isAtShop,
+                }));
+              }
             }
           } catch {}
         };
@@ -280,6 +308,7 @@ export default function App() {
     return () => {
       clearInterval(settingsInterval);
       if (sse) sse.close();
+      if (cloudSse) cloudSse.close();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', syncShopSettings);
     };
@@ -289,13 +318,12 @@ export default function App() {
     const currentStatus = getEffectiveShopStatus(settings);
     const newVal = !currentStatus.isAtShop;
     try {
-      const updated = await api.updateShopStatus(newVal, true);
+      const updated = await api.updateShopStatus(newVal);
       setSettings({ ...updated });
     } catch {
       const fallback: ShopSettings = {
         ...settings,
         isAtShop: newVal,
-        isAtShopManualOverride: true,
       };
       setSettings(fallback);
       api.updateSettings(fallback);
@@ -403,7 +431,7 @@ export default function App() {
     const shopStatus = getEffectiveShopStatus(settings);
     if (!shopStatus.isAtShop) {
       alert(
-        "🛑 दुकानदार वर्तमान में अनुपस्थित हैं ('दूकान पर' मोड OFF है)।\n\nप्रिंट सेवा सुबह 10:00 बजे से शाम 5:00 बजे तक या दुकानदार के 'दूकान पर' ऑन करने पर ही उपलब्ध रहती है।"
+        "🛑 दुकान वर्तमान में बंद है ('दूकान पर' मोड OFF है)।\n\nदुकानदार द्वारा मोड ON करने के बाद ही प्रिंट सेवा उपलब्ध होगी।"
       );
       return;
     }
@@ -600,7 +628,7 @@ export default function App() {
                 <span>🛑 दुकान बंद / दुकानदार अनुपस्थित (Shop Closed)</span>
               </div>
               <p className="text-xs sm:text-sm font-bold text-rose-950 leading-relaxed">
-                दुकानदार वर्तमान में उपलब्ध नहीं हैं ('दूकान पर' मोड OFF है)। प्रिंट सेवा केवल सुबह 10:00 बजे से शाम 5:00 बजे तक अथवा दुकानदार के चालू करने पर ही उपलब्ध रहती है।
+                दुकान वर्तमान में बंद है ('दूकान पर' मोड OFF है)। दुकानदार द्वारा चालू (ON) करने पर प्रिंट सेवा तुरंत सक्रिय हो जाएगी।
               </p>
             </div>
           )}

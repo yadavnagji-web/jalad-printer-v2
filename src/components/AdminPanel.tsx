@@ -115,9 +115,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setSettingsForm((prev) => ({
       ...prev,
       isAtShop: initialSettings.isAtShop,
-      isAtShopManualOverride: initialSettings.isAtShopManualOverride,
     }));
-  }, [initialSettings.isAtShop, initialSettings.isAtShopManualOverride]);
+  }, [initialSettings.isAtShop]);
 
   const [pricingForm, setPricingForm] = useState<PricingSettings>(initialPricing);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
@@ -398,43 +397,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleToggleAtShop = async (newVal: boolean) => {
     try {
-      const updated = await api.updateShopStatus(newVal, true);
+      const updated = await api.updateShopStatus(newVal);
       setSettingsForm(updated);
       onUpdateSettings(updated);
-      setSaveSuccessMsg(`दूकान पर मोड बदलकर ${newVal ? 'ON (उपस्थित)' : 'OFF (अनुपस्थित)'} कर दिया गया है!`);
+      setSaveSuccessMsg(`दूकान मोड बदलकर ${newVal ? 'ON (चालू / उपस्थित)' : 'OFF (बंद / अनुपस्थित)'} कर दिया गया है!`);
     } catch {
       const updatedSettings: ShopSettings = {
         ...settingsForm,
         isAtShop: newVal,
-        isAtShopManualOverride: true,
       };
       setSettingsForm(updatedSettings);
       onUpdateSettings(updatedSettings);
       api.updateSettings(updatedSettings);
-      setSaveSuccessMsg(`दूकान पर मोड बदलकर ${newVal ? 'ON (उपस्थित)' : 'OFF (अनुपस्थित)'} कर दिया गया है!`);
-    }
-    setTimeout(() => setSaveSuccessMsg(null), 3000);
-  };
-
-  const handleResetAutoSchedule = async () => {
-    const now = new Date();
-    const hours = now.getHours();
-    const isAutoHours = hours >= 10 && hours < 17;
-    try {
-      const updated = await api.updateShopStatus(isAutoHours, false);
-      setSettingsForm(updated);
-      onUpdateSettings(updated);
-      setSaveSuccessMsg('ऑटो-शेड्यूल मोड (10 AM - 5 PM) पर रीसेट कर दिया गया है!');
-    } catch {
-      const updatedSettings: ShopSettings = {
-        ...settingsForm,
-        isAtShop: isAutoHours,
-        isAtShopManualOverride: false,
-      };
-      setSettingsForm(updatedSettings);
-      onUpdateSettings(updatedSettings);
-      api.updateSettings(updatedSettings);
-      setSaveSuccessMsg('ऑटो-शेड्यूल मोड (10 AM - 5 PM) पर रीसेट कर दिया गया है!');
+      setSaveSuccessMsg(`दूकान मोड बदलकर ${newVal ? 'ON (चालू / उपस्थित)' : 'OFF (बंद / अनुपस्थित)'} कर दिया गया है!`);
     }
     setTimeout(() => setSaveSuccessMsg(null), 3000);
   };
@@ -593,11 +568,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                   }`}
                 >
-                  {shopStatus.isAtShop ? '🟢 ON (उपस्थित)' : '🔴 OFF (अनुपस्थित)'}
+                  {shopStatus.isAtShop ? '🟢 ON (चालू)' : '🔴 OFF (बंद)'}
                 </span>
               </div>
               <span className="text-[9px] text-slate-400 font-medium">
-                {shopStatus.isManualOverride ? '🔧 मैनुअल स्विच' : '⏰ ऑटो (10:00 AM - 5:00 PM)'}
+                100% मैनुअल लाइव कंट्रोल
               </span>
             </div>
 
@@ -613,17 +588,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             >
               {shopStatus.isAtShop ? 'OFF करें' : 'ON करें'}
             </button>
-
-            {shopStatus.isManualOverride && (
-              <button
-                type="button"
-                onClick={handleResetAutoSchedule}
-                className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 underline ml-1"
-                title="10:00 AM से 5:00 PM ऑटो शेड्यूल पर रीसेट करें"
-              >
-                ऑटो रीसेट
-              </button>
-            )}
           </div>
         </div>
 
@@ -853,7 +817,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         : '🛑 ग्राहक ऐप से प्रिंट देना रुका हुआ है। (दूकान बंद है/अनुपस्थित)'}
                     </p>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      ⏰ <b>ऑटो शेड्यूल:</b> सुबह 10:00 AM से शाम 5:00 PM तक ऑटो स्विच ऑन रहता है, बाकी समय ऑटो ऑफ रहता है। एडमिन जब चाहें मैन्युअल चालू/बंद कर सकते हैं।
+                      ⚡ <b>100% लाइव मैन्युअल कंट्रोल:</b> एडमिन द्वारा यहाँ से चालू या बंद करते ही सभी ग्राहकों के मोबाइल ऐप पर तुरंत लाइव अपडेट हो जाएगा।
                     </p>
                   </div>
                 </div>
@@ -870,17 +834,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   >
                     {shopStatus.isAtShop ? '🔴 दूकान OFF करें' : '🟢 दूकान ON करें'}
                   </button>
-
-                  {shopStatus.isManualOverride && (
-                    <button
-                      type="button"
-                      onClick={handleResetAutoSchedule}
-                      className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-indigo-300 transition"
-                      title="ऑटो-शेड्यूल रीसेट करें (10 AM - 5 PM)"
-                    >
-                      🔄 ऑटो-शेड्यूल पर लाएं
-                    </button>
-                  )}
                 </div>
               </div>
 

@@ -59,9 +59,6 @@ function loadDB(): AppDatabase {
   if (typeof dbData.settings.isAtShop === 'undefined') {
     dbData.settings.isAtShop = true;
   }
-  if (typeof dbData.settings.isAtShopManualOverride === 'undefined') {
-    dbData.settings.isAtShopManualOverride = false;
-  }
 
   return dbData;
 }
@@ -91,7 +88,6 @@ function getFreshDB(): AppDatabase {
       qrDisplayMode: 'dynamic',
       ownerPhotoUrl: '',
       isAtShop: true,
-      isAtShopManualOverride: false,
     },
     pricing: {
       bwSingleA4: 2.0,
@@ -195,35 +191,25 @@ app.get('/api/shop/status', (_req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  const now = new Date();
-  const hours = now.getHours();
-  const isAutoHours = hours >= 10 && hours < 17;
-  const isManualOverride = db.settings.isAtShopManualOverride === true;
-  const effectiveAtShop = isManualOverride ? !!db.settings.isAtShop : isAutoHours;
+  const isAtShop = typeof db.settings?.isAtShop === 'boolean' ? db.settings.isAtShop : true;
 
   res.json({
-    isAtShop: !!db.settings.isAtShop,
-    isAtShopManualOverride: !!db.settings.isAtShopManualOverride,
-    isAutoHours,
-    effectiveAtShop,
-    updatedAt: db.settings.updatedAt || new Date().toISOString(),
+    isAtShop,
+    effectiveAtShop: isAtShop,
+    updatedAt: db.settings?.updatedAt || new Date().toISOString(),
   });
 });
 
 app.post('/api/shop/status', (req: Request, res: Response) => {
-  const { isAtShop, isAtShopManualOverride } = req.body;
+  const { isAtShop } = req.body;
   if (typeof isAtShop === 'boolean') {
     db.settings.isAtShop = isAtShop;
-  }
-  if (typeof isAtShopManualOverride === 'boolean') {
-    db.settings.isAtShopManualOverride = isAtShopManualOverride;
   }
   db.settings.updatedAt = new Date().toISOString();
   saveDB();
   broadcastOrderEvent('shop_settings_updated', db.settings);
   broadcastOrderEvent('shop_status_updated', {
     isAtShop: db.settings.isAtShop,
-    isAtShopManualOverride: db.settings.isAtShopManualOverride,
   });
   res.json(db.settings);
 });
@@ -234,7 +220,6 @@ app.put('/api/shop/settings', (req: Request, res: Response) => {
   broadcastOrderEvent('shop_settings_updated', db.settings);
   broadcastOrderEvent('shop_status_updated', {
     isAtShop: db.settings.isAtShop,
-    isAtShopManualOverride: db.settings.isAtShopManualOverride,
   });
   res.json(db.settings);
 });
