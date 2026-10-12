@@ -27,22 +27,22 @@ export function getEffectiveShopStatus(settings?: ShopSettings): ShopStatusInfo 
     };
   }
 
-  // 1. If Admin explicitly set manual override OR isAtShop preference exists
-  if (settings.isAtShopManualOverride === true || (settings.isAtShopManualOverride !== false && settings.isAtShop !== undefined)) {
-    const isAtShop = !!settings.isAtShop;
+  // 1. If explicitly set to Auto Schedule Mode (isAtShopManualOverride === false)
+  if (settings.isAtShopManualOverride === false) {
     return {
-      isAtShop,
+      isAtShop: isAutoHours,
       isAutoHours,
-      isManualOverride: true,
-      scheduleText: isAtShop ? 'मैनुअल: ON (दुकानदार द्वारा चालू)' : 'मैनुअल: OFF (दुकानदार द्वारा बंद)',
+      isManualOverride: false,
+      scheduleText: isAutoHours ? 'ऑटो: 10 AM - 5 PM (ON)' : 'ऑटो: 10 AM - 5 PM (OFF)',
     };
   }
 
-  // 2. Strict Auto schedule when manual override is not active
+  // 2. Strict Admin Control: Manual ON / OFF (isAtShop boolean is the sole authority)
+  const isAtShop = settings.isAtShop !== undefined ? !!settings.isAtShop : isAutoHours;
   return {
-    isAtShop: isAutoHours,
+    isAtShop,
     isAutoHours,
-    isManualOverride: false,
-    scheduleText: isAutoHours ? 'ऑटो: 10 AM - 5 PM (ON)' : 'ऑटो: 10 AM - 5 PM (OFF)',
+    isManualOverride: true,
+    scheduleText: isAtShop ? 'मैनुअल: ON (दुकानदार द्वारा चालू)' : 'मैनुअल: OFF (दुकानदार द्वारा बंद)',
   };
 }

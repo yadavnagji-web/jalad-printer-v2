@@ -243,7 +243,12 @@ export default function App() {
         sse.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            if (data.type === 'shop_settings_updated') {
+            if (data.type === 'shop_settings_updated' && data.data) {
+              setSettings(data.data);
+              try {
+                localStorage.setItem('sqp_shop_settings', JSON.stringify(data.data));
+              } catch {}
+            } else if (data.type === 'shop_settings_updated') {
               syncShopSettings();
             }
           } catch {}
@@ -251,9 +256,17 @@ export default function App() {
       } catch {}
     }
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncShopSettings();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       clearInterval(settingsInterval);
       if (sse) sse.close();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
