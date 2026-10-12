@@ -109,6 +109,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Local state for tabs
   const [settingsForm, setSettingsForm] = useState<ShopSettings>(initialSettings);
+
+  // Sync settingsForm when parent initialSettings updates (e.g. from real-time live sync)
+  useEffect(() => {
+    setSettingsForm((prev) => ({
+      ...prev,
+      isAtShop: initialSettings.isAtShop,
+      isAtShopManualOverride: initialSettings.isAtShopManualOverride,
+    }));
+  }, [initialSettings.isAtShop, initialSettings.isAtShopManualOverride]);
+
   const [pricingForm, setPricingForm] = useState<PricingSettings>(initialPricing);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [printers, setPrinters] = useState<PrinterConfig[]>([]);
@@ -386,32 +396,46 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const shopStatus = getEffectiveShopStatus(settingsForm);
 
-  const handleToggleAtShop = (newVal: boolean) => {
-    const updatedSettings: ShopSettings = {
-      ...settingsForm,
-      isAtShop: newVal,
-      isAtShopManualOverride: true,
-    };
-    setSettingsForm(updatedSettings);
-    onUpdateSettings(updatedSettings);
-    api.updateSettings(updatedSettings);
-    setSaveSuccessMsg(`दूकान पर मोड बदलकर ${newVal ? 'ON (उपस्थित)' : 'OFF (अनुपस्थित)'} कर दिया गया है!`);
+  const handleToggleAtShop = async (newVal: boolean) => {
+    try {
+      const updated = await api.updateShopStatus(newVal, true);
+      setSettingsForm(updated);
+      onUpdateSettings(updated);
+      setSaveSuccessMsg(`दूकान पर मोड बदलकर ${newVal ? 'ON (उपस्थित)' : 'OFF (अनुपस्थित)'} कर दिया गया है!`);
+    } catch {
+      const updatedSettings: ShopSettings = {
+        ...settingsForm,
+        isAtShop: newVal,
+        isAtShopManualOverride: true,
+      };
+      setSettingsForm(updatedSettings);
+      onUpdateSettings(updatedSettings);
+      api.updateSettings(updatedSettings);
+      setSaveSuccessMsg(`दूकान पर मोड बदलकर ${newVal ? 'ON (उपस्थित)' : 'OFF (अनुपस्थित)'} कर दिया गया है!`);
+    }
     setTimeout(() => setSaveSuccessMsg(null), 3000);
   };
 
-  const handleResetAutoSchedule = () => {
+  const handleResetAutoSchedule = async () => {
     const now = new Date();
     const hours = now.getHours();
     const isAutoHours = hours >= 10 && hours < 17;
-    const updatedSettings: ShopSettings = {
-      ...settingsForm,
-      isAtShop: isAutoHours,
-      isAtShopManualOverride: false,
-    };
-    setSettingsForm(updatedSettings);
-    onUpdateSettings(updatedSettings);
-    api.updateSettings(updatedSettings);
-    setSaveSuccessMsg('ऑटो-शेड्यूल मोड (10 AM - 5 PM) पर रीसेट कर दिया गया है!');
+    try {
+      const updated = await api.updateShopStatus(isAutoHours, false);
+      setSettingsForm(updated);
+      onUpdateSettings(updated);
+      setSaveSuccessMsg('ऑटो-शेड्यूल मोड (10 AM - 5 PM) पर रीसेट कर दिया गया है!');
+    } catch {
+      const updatedSettings: ShopSettings = {
+        ...settingsForm,
+        isAtShop: isAutoHours,
+        isAtShopManualOverride: false,
+      };
+      setSettingsForm(updatedSettings);
+      onUpdateSettings(updatedSettings);
+      api.updateSettings(updatedSettings);
+      setSaveSuccessMsg('ऑटो-शेड्यूल मोड (10 AM - 5 PM) पर रीसेट कर दिया गया है!');
+    }
     setTimeout(() => setSaveSuccessMsg(null), 3000);
   };
 

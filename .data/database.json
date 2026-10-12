@@ -25,7 +25,10 @@
     "customPaymentLink": "",
     "customQrImageUrl": "",
     "qrDisplayMode": "dynamic",
-    "ownerPhotoUrl": ""
+    "ownerPhotoUrl": "",
+    "isAtShop": true,
+    "isAtShopManualOverride": false,
+    "updatedAt": "2026-10-12T15:00:27.964Z"
   },
   "pricing": {
     "bwSingleA4": 2,

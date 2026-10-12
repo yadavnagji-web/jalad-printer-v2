@@ -39,15 +39,34 @@ interface AppDatabase {
 }
 
 function loadDB(): AppDatabase {
+  let dbData: AppDatabase;
   if (fs.existsSync(DB_FILE)) {
     try {
-      const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
-      if (!data.registrations) data.registrations = [];
-      return data;
+      dbData = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
+      if (!dbData.registrations) dbData.registrations = [];
     } catch (e) {
       console.warn('Failed to parse database.json, initializing fresh store');
+      dbData = getFreshDB();
     }
+  } else {
+    dbData = getFreshDB();
   }
+
+  // Ensure settings object has all essential shop status flags
+  if (!dbData.settings) {
+    dbData.settings = {};
+  }
+  if (typeof dbData.settings.isAtShop === 'undefined') {
+    dbData.settings.isAtShop = true;
+  }
+  if (typeof dbData.settings.isAtShopManualOverride === 'undefined') {
+    dbData.settings.isAtShopManualOverride = false;
+  }
+
+  return dbData;
+}
+
+function getFreshDB(): AppDatabase {
   return {
     settings: {
       shopName: 'JALAD PRINTERS & EMITRA CENTER CHIKHALI',
@@ -164,16 +183,59 @@ function computeBufferSHA256(buffer: Buffer): string {
 
 // ================= API ROUTES =================
 
-// 1. Shop Settings
+// 1. Shop Settings & Dedicated Instant Status
 app.get('/api/shop/settings', (_req: Request, res: Response) => {
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.json(db.settings);
+});
+
+app.get('/api/shop/status', (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  const now = new Date();
+  const hours = now.getHours();
+  const isAutoHours = hours >= 10 && hours < 17;
+  const isManualOverride = db.settings.isAtShopManualOverride === true;
+  const effectiveAtShop = isManualOverride ? !!db.settings.isAtShop : isAutoHours;
+
+  res.json({
+    isAtShop: !!db.settings.isAtShop,
+    isAtShopManualOverride: !!db.settings.isAtShopManualOverride,
+    isAutoHours,
+    effectiveAtShop,
+    updatedAt: db.settings.updatedAt || new Date().toISOString(),
+  });
+});
+
+app.post('/api/shop/status', (req: Request, res: Response) => {
+  const { isAtShop, isAtShopManualOverride } = req.body;
+  if (typeof isAtShop === 'boolean') {
+    db.settings.isAtShop = isAtShop;
+  }
+  if (typeof isAtShopManualOverride === 'boolean') {
+    db.settings.isAtShopManualOverride = isAtShopManualOverride;
+  }
+  db.settings.updatedAt = new Date().toISOString();
+  saveDB();
+  broadcastOrderEvent('shop_settings_updated', db.settings);
+  broadcastOrderEvent('shop_status_updated', {
+    isAtShop: db.settings.isAtShop,
+    isAtShopManualOverride: db.settings.isAtShopManualOverride,
+  });
   res.json(db.settings);
 });
 
 app.put('/api/shop/settings', (req: Request, res: Response) => {
-  db.settings = { ...db.settings, ...req.body };
+  db.settings = { ...db.settings, ...req.body, updatedAt: new Date().toISOString() };
   saveDB();
   broadcastOrderEvent('shop_settings_updated', db.settings);
+  broadcastOrderEvent('shop_status_updated', {
+    isAtShop: db.settings.isAtShop,
+    isAtShopManualOverride: db.settings.isAtShopManualOverride,
+  });
   res.json(db.settings);
 });
 
@@ -378,7 +440,13 @@ echo [2/4] Generating 24x7 Smart Background Order Listener (PowerShell Daemon)..
   echo # Smart QR Print 24x7 Background Monitor Daemon
   echo $Server = "${origin}"
   echo $LastSeenFile = "$env:LOCALAPPDATA\\SmartQRPrint\\seen_orders.txt"
-  echo if (-not (Test-Path $LastSeenFile^)^) { New-Item -ItemType File -Path $LastSeenFile -Force ^| Out-Null }
+  echo if (-not (Test-Path $LastSeenFile^)^) {
+  echo     New-Item -ItemType File -Path $LastSeenFile -Force ^| Out-Null
+  echo     try {
+  echo         $initResp = Invoke-RestMethod -Uri "$Server/api/orders" -Method Get -TimeoutSec 3 -ErrorAction SilentlyContinue
+  echo         if ($initResp^) { foreach ($o in $initResp^) { Add-Content -Path $LastSeenFile -Value $o.id } }
+  echo     } catch {}
+  echo }
   echo.
   echo Write-Output "Smart QR Print 24x7 Daemon Started: $Server"
   echo.

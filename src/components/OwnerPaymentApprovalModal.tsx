@@ -30,7 +30,19 @@ export const OwnerPaymentApprovalModal: React.FC<OwnerPaymentApprovalModalProps>
 }) => {
   const [pendingOrders, setPendingOrders] = useState<CustomerOrder[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [dismissedOrderIds, setDismissedOrderIds] = useState<Set<string>>(new Set());
+  const [dismissedOrderIds, setDismissedOrderIds] = useState<Set<string>>(() => {
+    const set = new Set<string>();
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('sqp_dismissed_order_ids');
+        if (raw) {
+          const list: string[] = JSON.parse(raw);
+          list.forEach((id) => set.add(id));
+        }
+      } catch {}
+    }
+    return set;
+  });
   const lastAlertedOrderId = useRef<string | null>(null);
 
   // Persistent record of approved / processed orders so they NEVER reopen
@@ -52,7 +64,15 @@ export const OwnerPaymentApprovalModal: React.FC<OwnerPaymentApprovalModalProps>
 
   const markOrderAsProcessed = (orderId: string) => {
     processedOrderIdsRef.current.add(orderId);
-    setDismissedOrderIds((prev) => new Set(prev).add(orderId));
+    setDismissedOrderIds((prev) => {
+      const next = new Set(prev).add(orderId);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('sqp_dismissed_order_ids', JSON.stringify(Array.from(next).slice(-100)));
+        } catch {}
+      }
+      return next;
+    });
     setPendingOrders((prev) => prev.filter((o) => o.id !== orderId));
     if (typeof window !== 'undefined') {
       try {
@@ -60,6 +80,19 @@ export const OwnerPaymentApprovalModal: React.FC<OwnerPaymentApprovalModalProps>
         localStorage.setItem('sqp_verified_order_ids', JSON.stringify(arr));
       } catch {}
     }
+  };
+
+  const handleDismissCurrentOrder = (orderId: string) => {
+    setDismissedOrderIds((prev) => {
+      const next = new Set(prev).add(orderId);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('sqp_dismissed_order_ids', JSON.stringify(Array.from(next).slice(-100)));
+        } catch {}
+      }
+      return next;
+    });
+    setPendingOrders((prev) => prev.filter((o) => o.id !== orderId));
   };
 
   // Poll and SSE for orders awaiting approval for instant popup response
@@ -75,6 +108,9 @@ export const OwnerPaymentApprovalModal: React.FC<OwnerPaymentApprovalModalProps>
           currentShopCode ||
           (typeof window !== 'undefined' ? localStorage.getItem('sqp_shop_code') : null) ||
           'A';
+        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const requestedOrderId = urlParams?.get('orderId');
+
         const awaiting = allOrders.filter(
           (o) =>
             (o.paymentStatus === 'counter_pending' || o.paymentStatus === 'pending') &&
@@ -82,7 +118,9 @@ export const OwnerPaymentApprovalModal: React.FC<OwnerPaymentApprovalModalProps>
             o.printStatus !== 'completed' &&
             (!o.shopCode || o.shopCode === targetShopCode || targetShopCode === 'A') &&
             !dismissedOrderIds.has(o.id) &&
-            !processedOrderIdsRef.current.has(o.id)
+            !processedOrderIdsRef.current.has(o.id) &&
+            // Only pop up if explicitly requested via query param OR if order is recent (< 90 minutes)
+            (requestedOrderId === o.id || (o.createdAt && Date.now() - new Date(o.createdAt).getTime() < 90 * 60 * 1000))
         );
         setPendingOrders(awaiting);
       } catch (e) {
@@ -289,7 +327,7 @@ export const OwnerPaymentApprovalModal: React.FC<OwnerPaymentApprovalModalProps>
               </button>
             )}
             <button
-              onClick={() => setDismissedOrderIds((prev) => new Set(prev).add(currentOrder.id))}
+              onClick={() => handleDismissCurrentOrder(currentOrder.id)}
               className="p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/20 transition cursor-pointer"
               title="Dismiss Alert"
             >

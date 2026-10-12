@@ -222,8 +222,14 @@ export default function App() {
         const latestSettings = await api.getSettings();
         if (latestSettings) {
           setSettings((prev) => {
-            if (JSON.stringify(prev) !== JSON.stringify(latestSettings)) {
-              return latestSettings;
+            if (
+              !prev ||
+              prev.isAtShop !== latestSettings.isAtShop ||
+              prev.isAtShopManualOverride !== latestSettings.isAtShopManualOverride ||
+              prev.shopName !== latestSettings.shopName ||
+              JSON.stringify(prev) !== JSON.stringify(latestSettings)
+            ) {
+              return { ...latestSettings };
             }
             return prev;
           });
@@ -234,7 +240,7 @@ export default function App() {
     };
 
     syncShopSettings();
-    const settingsInterval = setInterval(syncShopSettings, 1000);
+    const settingsInterval = setInterval(syncShopSettings, 800);
 
     let sse: EventSource | null = null;
     if (typeof EventSource !== 'undefined') {
@@ -244,10 +250,17 @@ export default function App() {
           try {
             const data = JSON.parse(event.data);
             if (data.type === 'shop_settings_updated' && data.data) {
-              setSettings(data.data);
+              setSettings({ ...data.data });
               try {
                 localStorage.setItem('sqp_shop_settings', JSON.stringify(data.data));
               } catch {}
+            } else if (data.type === 'shop_status_updated' && data.data) {
+              setSettings((prev) => ({
+                ...prev,
+                isAtShop: data.data.isAtShop,
+                isAtShopManualOverride: data.data.isAtShopManualOverride,
+              }));
+              syncShopSettings();
             } else if (data.type === 'shop_settings_updated') {
               syncShopSettings();
             }
@@ -262,13 +275,32 @@ export default function App() {
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', syncShopSettings);
 
     return () => {
       clearInterval(settingsInterval);
       if (sse) sse.close();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', syncShopSettings);
     };
   }, []);
+
+  const handleToggleShopStatus = async () => {
+    const currentStatus = getEffectiveShopStatus(settings);
+    const newVal = !currentStatus.isAtShop;
+    try {
+      const updated = await api.updateShopStatus(newVal, true);
+      setSettings({ ...updated });
+    } catch {
+      const fallback: ShopSettings = {
+        ...settings,
+        isAtShop: newVal,
+        isAtShopManualOverride: true,
+      };
+      setSettings(fallback);
+      api.updateSettings(fallback);
+    }
+  };
 
   // Live polling for active customer order status updates (Instant shopkeeper accept detection)
   useEffect(() => {
@@ -516,6 +548,7 @@ export default function App() {
         }}
         isAdmin={isAdminOpen}
         isOwnerDevice={isOwnerDevice}
+        onToggleShopStatus={handleToggleShopStatus}
         onToggleOwnerDevice={() => {
           const next = !isOwnerDevice;
           setIsOwnerDevice(next);

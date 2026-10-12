@@ -22,6 +22,7 @@ interface HeaderProps {
   onToggleOwnerDevice?: () => void;
   onOpenDesktopSetup?: () => void;
   onMinimizeToTray?: () => void;
+  onToggleShopStatus?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -32,6 +33,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAdmin,
   isAdmin,
   currentShopCode,
+  isOwnerDevice,
+  onToggleShopStatus,
 }) => {
   const [copiedAppShare, setCopiedAppShare] = useState(false);
   const clickCountRef = React.useRef(0);
@@ -105,15 +108,31 @@ export const Header: React.FC<HeaderProps> = ({
             >
               {settings.shopName || 'JALAD PRINTERS & EMITRA CENTER CHIKHALI'}
             </h1>
-            <span
-              className={`px-1.5 py-0.5 rounded text-[9px] font-black shrink-0 ${
-                shopStatus.isAtShop
-                  ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-300'
-                  : 'bg-rose-500/10 text-rose-700 border border-rose-300 animate-pulse'
-              }`}
-            >
-              {shopStatus.isAtShop ? '🟢 ON' : '🔴 बंद'}
-            </span>
+            {/* Shop Status: Live Indicator + Quick 1-Click Toggle for Admin/Owner */}
+            {(isAdmin || isOwnerDevice) && onToggleShopStatus ? (
+              <button
+                type="button"
+                onClick={onToggleShopStatus}
+                className={`px-2 py-0.5 rounded text-[9px] font-black shrink-0 cursor-pointer shadow-xs active:scale-95 transition ${
+                  shopStatus.isAtShop
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                    : 'bg-rose-600 text-white hover:bg-rose-700 animate-pulse'
+                }`}
+                title="दुकान चालू / बंद टॉगल करें (Click to Switch ON/OFF)"
+              >
+                {shopStatus.isAtShop ? '🟢 ON' : '🔴 बंद'}
+              </button>
+            ) : (
+              <span
+                className={`px-1.5 py-0.5 rounded text-[9px] font-black shrink-0 ${
+                  shopStatus.isAtShop
+                    ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-300'
+                    : 'bg-rose-500/10 text-rose-700 border border-rose-300 animate-pulse'
+                }`}
+              >
+                {shopStatus.isAtShop ? '🟢 ON' : '🔴 बंद'}
+              </span>
+            )}
           </div>
 
           {/* Line 2: All buttons in single line */}
@@ -194,20 +213,39 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
                   कोड: {activeCode}
                 </span>
-                <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-black shrink-0 ${
-                    shopStatus.isAtShop
-                      ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-300'
-                      : 'bg-rose-500/10 text-rose-700 border border-rose-300 animate-pulse'
-                  }`}
-                  title={
-                    shopStatus.isAtShop
-                      ? 'दूकान पर उपस्थित (10 AM - 5 PM या मैन्युअल ON)'
-                      : 'दूकान बंद / अनुपस्थित (प्रिंट सेवा बंद)'
-                  }
-                >
-                  {shopStatus.isAtShop ? '🟢 दूकान पर (ON)' : '🔴 बंद (OFF)'}
-                </span>
+                {(isAdmin || isOwnerDevice) && onToggleShopStatus ? (
+                  <button
+                    type="button"
+                    onClick={onToggleShopStatus}
+                    className={`px-2.5 py-0.5 rounded text-[10px] font-black shrink-0 cursor-pointer shadow-xs active:scale-95 transition ${
+                      shopStatus.isAtShop
+                        ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                        : 'bg-rose-600 text-white hover:bg-rose-700 animate-pulse'
+                    }`}
+                    title={
+                      shopStatus.isAtShop
+                        ? 'दुकान बंद करने के लिए क्लिक करें (Click to Switch OFF)'
+                        : 'दुकान चालू करने के लिए क्लिक करें (Click to Switch ON)'
+                    }
+                  >
+                    {shopStatus.isAtShop ? '🟢 दूकान पर (ON)' : '🔴 बंद (OFF)'}
+                  </button>
+                ) : (
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-black shrink-0 ${
+                      shopStatus.isAtShop
+                        ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-300'
+                        : 'bg-rose-500/10 text-rose-700 border border-rose-300 animate-pulse'
+                    }`}
+                    title={
+                      shopStatus.isAtShop
+                        ? 'दूकान पर उपस्थित (10 AM - 5 PM या मैन्युअल ON)'
+                        : 'दूकान बंद / अनुपस्थित (प्रिंट सेवा बंद)'
+                    }
+                  >
+                    {shopStatus.isAtShop ? '🟢 दूकान पर (ON)' : '🔴 बंद (OFF)'}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 truncate">
                 {settings.shopAddress || 'VPO CHIKHALI, TEH CHIKHALI, DIST. DUNGARPUR RAJASTHAN'}

@@ -37,6 +37,8 @@ export const DEFAULT_SHOP_SETTINGS: ShopSettings = {
   adsContent: '',
   adsBannerUrl: '',
   shopCode: 'A',
+  isAtShop: true,
+  isAtShopManualOverride: false,
 };
 
 export const DEFAULT_PRICING: PricingSettings = {
@@ -186,6 +188,60 @@ export class ApiClient {
     saveToStorage(LOCAL_STORAGE_KEYS.SETTINGS, settings);
     this.addAuditLog('ADMIN', 'Settings Updated', `Shop name updated to "${settings.shopName}" (local)`);
     return settings;
+  }
+
+  // Dedicated instant shop status methods
+  public async getShopStatus(): Promise<{
+    isAtShop: boolean;
+    isAtShopManualOverride: boolean;
+    isAutoHours: boolean;
+    effectiveAtShop: boolean;
+  }> {
+    try {
+      const res = await fetch(`/api/shop/status?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {}
+    const local = loadFromStorage(LOCAL_STORAGE_KEYS.SETTINGS, DEFAULT_SHOP_SETTINGS);
+    const now = new Date();
+    const isAutoHours = now.getHours() >= 10 && now.getHours() < 17;
+    const isManual = local.isAtShopManualOverride === true;
+    return {
+      isAtShop: !!local.isAtShop,
+      isAtShopManualOverride: !!local.isAtShopManualOverride,
+      isAutoHours,
+      effectiveAtShop: isManual ? !!local.isAtShop : isAutoHours,
+    };
+  }
+
+  public async updateShopStatus(isAtShop: boolean, isManualOverride: boolean = true): Promise<ShopSettings> {
+    try {
+      const res = await fetch('/api/shop/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isAtShop, isAtShopManualOverride: isManualOverride }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        saveToStorage(LOCAL_STORAGE_KEYS.SETTINGS, data);
+        this.addAuditLog('ADMIN', 'Shop Status Updated', `Shop mode toggled to ${isAtShop ? 'ON' : 'OFF'}`);
+        return data;
+      }
+    } catch {
+      // fallback
+    }
+    const current = loadFromStorage(LOCAL_STORAGE_KEYS.SETTINGS, DEFAULT_SHOP_SETTINGS);
+    const updated: ShopSettings = {
+      ...current,
+      isAtShop,
+      isAtShopManualOverride: isManualOverride,
+    };
+    saveToStorage(LOCAL_STORAGE_KEYS.SETTINGS, updated);
+    return updated;
   }
 
   // --- Pricing ---
