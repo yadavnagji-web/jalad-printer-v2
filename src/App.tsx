@@ -215,6 +215,29 @@ export default function App() {
     };
   }, []);
 
+  // Instant real-time synchronization of shop settings (e.g., At Shop ON/OFF status) across all connected users
+  useEffect(() => {
+    const syncShopSettings = async () => {
+      try {
+        const latestSettings = await api.getSettings();
+        if (latestSettings) {
+          setSettings((prev) => {
+            if (JSON.stringify(prev) !== JSON.stringify(latestSettings)) {
+              return latestSettings;
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // silent offline guard
+      }
+    };
+
+    syncShopSettings();
+    const settingsInterval = setInterval(syncShopSettings, 2000);
+    return () => clearInterval(settingsInterval);
+  }, []);
+
   const handleDocumentsAdded = (newDocs: UploadedDocument[]) => {
     setDocuments((prev) => [...prev, ...newDocs]);
     // Initialize default configs for new documents: Strictly B&W by default and High Quality internally
@@ -349,6 +372,7 @@ export default function App() {
       const created = await api.createOrder(newOrder);
       playOrderChime();
       setTrackingOrder(created);
+      setIsTrackingModalOpen(true);
     } catch (err) {
       console.error('Failed to submit print request:', err);
     } finally {

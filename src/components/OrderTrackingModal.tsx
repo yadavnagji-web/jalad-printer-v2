@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Search,
@@ -34,6 +34,29 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
   const [currentOrder, setCurrentOrder] = useState<CustomerOrder | null>(initialOrder || null);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialOrder) {
+      setCurrentOrder(initialOrder);
+      setSearchQuery(initialOrder.orderNumber);
+    }
+  }, [initialOrder, isOpen]);
+
+  // Real-time live polling for print status updates
+  useEffect(() => {
+    if (!isOpen || !currentOrder?.id) return;
+    const interval = setInterval(async () => {
+      try {
+        const updated = await api.getOrderById(currentOrder.id);
+        if (updated) {
+          setCurrentOrder(updated);
+        }
+      } catch {
+        // silent
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [isOpen, currentOrder?.id]);
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
