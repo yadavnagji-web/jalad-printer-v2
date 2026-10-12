@@ -15,12 +15,12 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
   onClose,
   onSaveProcessedCopy,
 }) => {
-  if (!isOpen) return null;
-
   const [rotation, setRotation] = useState<number>(0);
   const [brightness, setBrightness] = useState<number>(100);
   const [contrast, setContrast] = useState<number>(100);
-  const [officialConsentGiven, setOfficialConsentGiven] = useState<boolean>(!doc.isOfficialIdDoc);
+  const [officialConsentGiven, setOfficialConsentGiven] = useState<boolean>(!doc?.isOfficialIdDoc);
+
+  if (!isOpen || !doc) return null;
 
   const handleReset = () => {
     setRotation(0);

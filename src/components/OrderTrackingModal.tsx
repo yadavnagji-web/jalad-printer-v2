@@ -28,8 +28,6 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
   initialOrder,
   settings,
 }) => {
-  if (!isOpen) return null;
-
   const [searchQuery, setSearchQuery] = useState(initialOrder?.orderNumber || '');
   const [currentOrder, setCurrentOrder] = useState<CustomerOrder | null>(initialOrder || null);
   const [isSearching, setIsSearching] = useState(false);
@@ -57,6 +55,8 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
     }, 2000);
     return () => clearInterval(interval);
   }, [isOpen, currentOrder?.id]);
+
+  if (!isOpen) return null;
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
