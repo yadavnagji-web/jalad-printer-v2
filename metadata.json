@@ -1,0 +1,6 @@
+{
+  "name": "Smart QR Print",
+  "description": "Automated QR Document Printing System with UPI Payments, Original Document Preservation, and Windows Print Agent for Epson and HP printers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
