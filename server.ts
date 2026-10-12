@@ -166,12 +166,14 @@ function computeBufferSHA256(buffer: Buffer): string {
 
 // 1. Shop Settings
 app.get('/api/shop/settings', (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json(db.settings);
 });
 
 app.put('/api/shop/settings', (req: Request, res: Response) => {
   db.settings = { ...db.settings, ...req.body };
   saveDB();
+  broadcastOrderEvent('shop_settings_updated', db.settings);
   res.json(db.settings);
 });
 

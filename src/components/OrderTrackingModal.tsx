@@ -260,6 +260,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                   type="button"
                   onClick={async () => {
                     try {
+                      await api.approvePayment(currentOrder.id, 'cash', 'Shop Owner');
                       const updated = await api.updateOrderStatus(currentOrder.id, {
                         printStatus: 'completed',
                         paymentStatus: 'paid',

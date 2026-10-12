@@ -152,7 +152,10 @@ export class ApiClient {
   // --- Settings ---
   public async getSettings(): Promise<ShopSettings> {
     try {
-      const res = await fetch('/api/shop/settings');
+      const res = await fetch(`/api/shop/settings?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+      });
       if (res.ok) {
         const data = await res.json();
         saveToStorage(LOCAL_STORAGE_KEYS.SETTINGS, data);

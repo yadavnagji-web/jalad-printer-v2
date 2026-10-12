@@ -197,6 +197,11 @@ export const OwnerPaymentApprovalModal: React.FC<OwnerPaymentApprovalModalProps>
         orderToApprove.paymentTxnId || undefined
       );
 
+      const completedOrder = await api.updateOrderStatus(orderToApprove.id, {
+        printStatus: 'completed',
+        completedAt: new Date().toISOString(),
+      });
+
       // Trigger browser's native print dialog for the documents
       if (orderToApprove.items && orderToApprove.items.length > 0) {
         for (const it of orderToApprove.items) {

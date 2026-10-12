@@ -234,9 +234,45 @@ export default function App() {
     };
 
     syncShopSettings();
-    const settingsInterval = setInterval(syncShopSettings, 2000);
-    return () => clearInterval(settingsInterval);
+    const settingsInterval = setInterval(syncShopSettings, 1000);
+
+    let sse: EventSource | null = null;
+    if (typeof EventSource !== 'undefined') {
+      try {
+        sse = new EventSource('/api/orders/live');
+        sse.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'shop_settings_updated') {
+              syncShopSettings();
+            }
+          } catch {}
+        };
+      } catch {}
+    }
+
+    return () => {
+      clearInterval(settingsInterval);
+      if (sse) sse.close();
+    };
   }, []);
+
+  // Live polling for active customer order status updates (Instant shopkeeper accept detection)
+  useEffect(() => {
+    if (!trackingOrder?.id) return;
+    const trackingInterval = setInterval(async () => {
+      try {
+        const latest = await api.getOrderById(trackingOrder.id);
+        if (latest && (latest.printStatus !== trackingOrder.printStatus || latest.paymentStatus !== trackingOrder.paymentStatus)) {
+          setTrackingOrder(latest);
+          if (latest.printStatus === 'completed' || latest.printStatus === 'printing') {
+            playOrderChime();
+          }
+        }
+      } catch {}
+    }, 1000);
+    return () => clearInterval(trackingInterval);
+  }, [trackingOrder?.id, trackingOrder?.printStatus, trackingOrder?.paymentStatus]);
 
   const handleDocumentsAdded = (newDocs: UploadedDocument[]) => {
     setDocuments((prev) => [...prev, ...newDocs]);
@@ -482,10 +518,9 @@ export default function App() {
 
       {/* 
         Shop Owner Payment Approval Popup:
-        Active ONLY when Admin Panel is open or in Minimized Monitor Mode.
-        Never shows on the customer's mobile app view.
+        Active when Admin Panel is open OR on Shopkeeper/Owner Device.
       */}
-      {isAdminOpen && (
+      {(isAdminOpen || isOwnerDevice) && (
         <OwnerPaymentApprovalModal
           currentShopCode={currentShopCode}
           onOrderApproved={(order) => {
@@ -552,17 +587,29 @@ export default function App() {
           {trackingOrder ? (
             <div className="bg-white rounded-3xl border-2 border-emerald-500 p-6 sm:p-8 shadow-xl space-y-6 animate-in fade-in">
               <div className="text-center space-y-3">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-emerald-100 text-emerald-600 rounded-full mx-auto flex items-center justify-center shadow-inner animate-bounce">
+                <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full mx-auto flex items-center justify-center shadow-inner ${
+                  trackingOrder.printStatus === 'completed'
+                    ? 'bg-emerald-100 text-emerald-600'
+                    : 'bg-emerald-100 text-emerald-600 animate-bounce'
+                }`}>
                   <CheckCircle2 className="w-10 h-10 sm:w-12 sm:h-12 text-emerald-600" />
                 </div>
-                <span className="px-3.5 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 uppercase tracking-wider inline-block">
-                  ✓ प्रिंट अनुरोध सफलतापूर्वक भेजा गया!
+                <span className={`px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider inline-block ${
+                  trackingOrder.printStatus === 'completed'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-blue-100 text-blue-800 animate-pulse'
+                }`}>
+                  {trackingOrder.printStatus === 'completed'
+                    ? '🟢 दुकानदार ने आपका प्रिंट स्वीकार कर लिया है!'
+                    : '⏳ प्रिंट अनुरोध दुकानदार के कंप्यूटर पर पहुँच गया है'}
                 </span>
                 <h3 className="text-2xl sm:text-3xl font-black text-slate-900">
                   ऑर्डर टोकन #{trackingOrder.orderNumber}
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed font-medium">
-                  दुकानदार के कंप्यूटर पर आपका प्रिंट अनुरोध पहुँच चुका है। जैसे ही दुकानदार 'स्वीकार' करेंगे, प्रिंट तुरंत निकल जाएगा।
+                  {trackingOrder.printStatus === 'completed'
+                    ? 'आपका दस्तावेज प्रिंट हो चुका है या प्रिंटर पर भेजा जा चुका है। काउंटर से प्राप्त करें।'
+                    : "दुकानदार के कंप्यूटर पर आपका प्रिंट अनुरोध पहुँच चुका है। जैसे ही दुकानदार 'स्वीकार' करेंगे, प्रिंट तुरंत निकल जाएगा।"}
                 </p>
               </div>
 
@@ -587,6 +634,36 @@ export default function App() {
                   ))}
                 </div>
               </div>
+
+              {/* Shopkeeper 1-Click Accept Button (Visible if Shopkeeper/Admin is viewing) */}
+              {trackingOrder.printStatus !== 'completed' && (isAdminOpen || isOwnerDevice) && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const approved = await api.approvePayment(
+                        trackingOrder.id,
+                        'cash',
+                        'Shop Owner'
+                      );
+                      const updated = await api.updateOrderStatus(trackingOrder.id, {
+                        printStatus: 'completed',
+                        completedAt: new Date().toISOString(),
+                      });
+                      if (updated || approved) {
+                        setTrackingOrder(updated || approved);
+                        playOrderChime();
+                      }
+                    } catch (err) {
+                      console.error('Failed to approve print:', err);
+                    }
+                  }}
+                  className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white font-black text-base flex items-center justify-center gap-3 shadow-xl shadow-emerald-600/30 active:scale-95 transition cursor-pointer"
+                >
+                  <Printer className="w-6 h-6 text-white animate-bounce" />
+                  <span>✓ स्वीकार करें और प्रिंट निकालें (Accept & Print Now)</span>
+                </button>
+              )}
 
               {/* Reset / New Print Action */}
               <div className="pt-2 flex flex-col sm:flex-row gap-3">

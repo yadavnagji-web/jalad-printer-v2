@@ -315,9 +315,13 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
 
                   <button
                     type="button"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !isShopOpen}
                     onClick={onNextStep}
-                    className="flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-xl shadow-blue-600/30 active:scale-95 transition cursor-pointer disabled:opacity-50"
+                    className={`flex-1 py-3.5 px-6 rounded-2xl font-black text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-xl transition cursor-pointer disabled:opacity-60 ${
+                      !isShopOpen
+                        ? 'bg-slate-700 text-slate-300 shadow-none cursor-not-allowed'
+                        : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-blue-600/30 active:scale-95'
+                    }`}
                   >
                     {isSubmitting ? (
                       <Loader2 className="w-5 h-5 animate-spin text-white" />
@@ -327,6 +331,8 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
                     <span>
                       {isSubmitting
                         ? (language === 'hi' ? 'प्रिंट अनुरोध भेजा जा रहा है...' : 'Sending to print...')
+                        : !isShopOpen
+                        ? (language === 'hi' ? '🛑 दुकान बंद है (Shop Offline)' : 'Shop Offline')
                         : (language === 'hi' ? '🖨️ प्रिंट दें (Print Now)' : 'Print Now')}
                     </span>
                   </button>

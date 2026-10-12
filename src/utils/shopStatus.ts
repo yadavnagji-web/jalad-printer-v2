@@ -27,8 +27,8 @@ export function getEffectiveShopStatus(settings?: ShopSettings): ShopStatusInfo 
     };
   }
 
-  // 1. If Admin manually set override (isAtShopManualOverride === true)
-  if (settings.isAtShopManualOverride === true) {
+  // 1. If Admin explicitly set manual override OR isAtShop preference exists
+  if (settings.isAtShopManualOverride === true || (settings.isAtShopManualOverride !== false && settings.isAtShop !== undefined)) {
     const isAtShop = !!settings.isAtShop;
     return {
       isAtShop,
