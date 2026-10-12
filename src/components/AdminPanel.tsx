@@ -71,6 +71,7 @@ interface AdminPanelProps {
 
 type AdminTab =
   | 'dashboard'
+  | 'print_queue'
   | 'settings'
   | 'ads'
   | 'shopkeepers'
@@ -686,6 +687,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('print_queue')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition text-left ${
+              activeTab === 'print_queue'
+                ? 'bg-emerald-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Printer className="w-4 h-4 text-emerald-400" />
+              <span>🖨️ प्रिंट कतार (Live Queue)</span>
+            </div>
+            {pendingJobs > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-400 text-slate-950 animate-bounce">
+                {pendingJobs} नया
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => setActiveTab('settings')}
             className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition text-left ${
               activeTab === 'settings'
@@ -953,6 +973,186 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* TAB: LIVE PRINT QUEUE & ORDERS */}
+          {activeTab === 'print_queue' && (
+            <div className="space-y-6 animate-in fade-in">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <h3 className="text-xl font-black text-white flex items-center gap-2">
+                    <Printer className="w-6 h-6 text-emerald-400" />
+                    <span>🖨️ लाइव प्रिंट कतार (Live Print Orders Queue)</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    ग्राहकों द्वारा भेजे गए प्रिंट अनुरोध। 'स्वीकार करें' बटन पर क्लिक करके तुरंत प्रिंट निकालें।
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                    कतार में: {pendingJobs} ऑर्डर
+                  </span>
+                </div>
+              </div>
+
+              {orders.length === 0 ? (
+                <div className="bg-slate-950 border border-slate-800 rounded-3xl p-12 text-center space-y-3">
+                  <div className="w-16 h-16 rounded-3xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/30">
+                    <Printer className="w-8 h-8" />
+                  </div>
+                  <h4 className="text-base font-bold text-white">कोई भी प्रिंट ऑर्डर कतार में नहीं है</h4>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    जैसे ही कोई ग्राहक क्यूआर कोड स्कैन करके दस्तावेज प्रिंट देगा, उसका ऑर्डर तुरंत यहां 'स्वीकार करें' बटन के साथ दिखाई देगा।
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {orders.map((ord) => {
+                    const isPending = ord.printStatus === 'queued' || ord.printStatus === 'downloading' || ord.printStatus === 'printing';
+                    return (
+                      <div
+                        key={ord.id}
+                        className={`bg-slate-950 border-2 rounded-3xl p-5 sm:p-6 space-y-4 transition ${
+                          isPending
+                            ? 'border-emerald-500/80 shadow-xl shadow-emerald-950/50'
+                            : 'border-slate-800'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 rounded-xl font-black text-sm">
+                              टोकन #{ord.orderNumber}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold text-white">
+                                  {ord.customerName} ({ord.customerPhone || 'ग्राहक'})
+                                </span>
+                                <span className="px-2 py-0.5 rounded text-[10px] font-black bg-blue-900/80 text-blue-200 border border-blue-700">
+                                  कोड: {ord.shopCode || 'A'}
+                                </span>
+                              </div>
+                              <span className="text-xs text-slate-400">
+                                {new Date(ord.createdAt).toLocaleTimeString('hi-IN', { hour: '2-digit', minute: '2-digit' })} • {ord.items.length} दस्तावेज
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-end sm:self-center">
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-black uppercase ${
+                                ord.printStatus === 'completed'
+                                  ? 'bg-emerald-900 text-emerald-300 border border-emerald-700'
+                                  : ord.printStatus === 'printing'
+                                  ? 'bg-blue-900 text-blue-200 border border-blue-700 animate-pulse'
+                                  : 'bg-amber-900 text-amber-200 border border-amber-700'
+                              }`}
+                            >
+                              {ord.printStatus === 'completed'
+                                ? '✓ प्रिंट पूर्ण'
+                                : ord.printStatus === 'printing'
+                                ? '🖨️ प्रिंटिंग जारी'
+                                : '⏳ कतार में (Queued)'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Files List */}
+                        <div className="space-y-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                            प्रिंट किए जाने वाले दस्तावेज:
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {ord.items.map((it) => (
+                              <div
+                                key={it.id}
+                                className="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs"
+                              >
+                                <span className="font-bold text-slate-200 truncate max-w-[200px]">
+                                  • {it.document.originalFileName}
+                                </span>
+                                <span className="text-emerald-400 font-mono font-bold">
+                                  {it.document.pageCount} पृष्ठ ({it.config.colorMode === 'color' ? 'कलर' : 'B&W'})
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Order Actions */}
+                        <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+                          {ord.printStatus !== 'completed' && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  const updated = await api.updateOrderStatus(ord.id, {
+                                    printStatus: 'completed',
+                                    paymentStatus: 'paid',
+                                    completedAt: new Date().toISOString(),
+                                  });
+                                  if (updated) {
+                                    setOrders((prev) => prev.map((o) => (o.id === ord.id ? updated : o)));
+                                  }
+                                } catch (err) {
+                                  console.error(err);
+                                }
+                              }}
+                              className="w-full sm:flex-1 py-3 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-95 transition cursor-pointer"
+                            >
+                              <CheckCircle2 className="w-5 h-5 text-white" />
+                              <span>✓ स्वीकार करें और प्रिंट निकालें (Accept Print)</span>
+                            </button>
+                          )}
+
+                          {ord.printStatus === 'completed' && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  const updated = await api.updateOrderStatus(ord.id, {
+                                    printStatus: 'printing',
+                                  });
+                                  if (updated) {
+                                    setOrders((prev) => prev.map((o) => (o.id === ord.id ? updated : o)));
+                                  }
+                                } catch {}
+                              }}
+                              className="py-2.5 px-5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center gap-1.5"
+                            >
+                              <RotateCw className="w-4 h-4 text-blue-400" />
+                              <span>पुन: प्रिंट करें (Re-Print)</span>
+                            </button>
+                          )}
+
+                          {ord.printStatus !== 'cancelled' && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  const updated = await api.updateOrderStatus(ord.id, {
+                                    printStatus: 'cancelled',
+                                    paymentStatus: 'failed',
+                                  });
+                                  if (updated) {
+                                    setOrders((prev) => prev.map((o) => (o.id === ord.id ? updated : o)));
+                                  }
+                                } catch {}
+                              }}
+                              className="py-2.5 px-4 rounded-xl border border-rose-800 bg-rose-950/40 text-rose-300 hover:bg-rose-900/60 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <X className="w-4 h-4" />
+                              <span>अस्वीकार / रद्द करें (Cancel)</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

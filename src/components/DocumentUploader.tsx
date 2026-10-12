@@ -27,6 +27,7 @@ interface DocumentUploaderProps {
   onNextStep: () => void;
   onOpenPreview?: (doc: UploadedDocument) => void;
   isSubmitting?: boolean;
+  isShopOpen?: boolean;
 }
 
 export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
@@ -38,6 +39,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   onNextStep,
   onOpenPreview,
   isSubmitting = false,
+  isShopOpen = true,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);

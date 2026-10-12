@@ -10,28 +10,39 @@ export interface ShopStatusInfo {
 /**
  * Calculates whether the shop is currently open/at shop based on:
  * 1. Automatic time schedule: Morning 10:00 AM to 5:00 PM (hours 10 to 16)
- * 2. Admin manual override: If manual override flag is true, use admin's explicit boolean preference.
+ * 2. Admin manual override: If manual override flag is true, strictly use admin's explicit boolean preference.
  */
 export function getEffectiveShopStatus(settings?: ShopSettings): ShopStatusInfo {
   const now = new Date();
   const hours = now.getHours();
-  // 10:00 AM to 5:00 PM (10:00 to 16:59:59)
+  // Morning 10:00 AM to 5:00 PM (hours 10:00 to 16:59:59)
   const isAutoHours = hours >= 10 && hours < 17;
 
-  if (settings && settings.isAtShopManualOverride === true) {
+  if (!settings) {
     return {
-      isAtShop: !!settings.isAtShop,
+      isAtShop: isAutoHours,
       isAutoHours,
-      isManualOverride: true,
-      scheduleText: 'मैनुअल (Manual Override Active)',
+      isManualOverride: false,
+      scheduleText: isAutoHours ? 'ऑटो: 10 AM - 5 PM (ON)' : 'ऑटो: 10 AM - 5 PM (OFF)',
     };
   }
 
-  // Automatic schedule
+  // 1. If Admin manually set override (isAtShopManualOverride === true)
+  if (settings.isAtShopManualOverride === true) {
+    const isAtShop = !!settings.isAtShop;
+    return {
+      isAtShop,
+      isAutoHours,
+      isManualOverride: true,
+      scheduleText: isAtShop ? 'मैनुअल: ON (दुकानदार द्वारा चालू)' : 'मैनुअल: OFF (दुकानदार द्वारा बंद)',
+    };
+  }
+
+  // 2. Strict Auto schedule when manual override is not active
   return {
-    isAtShop: settings?.isAtShop !== undefined ? settings.isAtShop : isAutoHours,
+    isAtShop: isAutoHours,
     isAutoHours,
     isManualOverride: false,
-    scheduleText: 'ऑटो (10:00 AM - 5:00 PM)',
+    scheduleText: isAutoHours ? 'ऑटो: 10 AM - 5 PM (ON)' : 'ऑटो: 10 AM - 5 PM (OFF)',
   };
 }

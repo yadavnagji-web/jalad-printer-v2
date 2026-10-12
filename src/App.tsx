@@ -610,6 +610,7 @@ export default function App() {
               onNextStep={handleDirectSubmitPrint}
               onOpenPreview={(doc) => setPreviewDoc(doc)}
               isSubmitting={isSubmittingDirectPrint}
+              isShopOpen={shopStatus.isAtShop}
             />
           )}
         </main>
